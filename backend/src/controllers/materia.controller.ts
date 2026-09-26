@@ -20,6 +20,49 @@ export class MateriaController {
     }
   }
 
+  // Verifica se a matéria possui dependências antes de inativar e retorna os registros associados
+  async VerificarDependencias(req: Request, res: Response): Promise<Response> {
+    try {
+      const id = req.params.id;
+
+      // Busca materiais vinculados, incluindo o nome do arquivo e o nome do aluno (via join)
+      const { data: materiais, error: errMaterial } = await supabase
+        .from('material')
+        .select('id_material, nome_do_arquivo, tipo_de_material, aluno:id_aluno(id, nome_completo)')
+        .eq('id_materia', id);
+
+      if (errMaterial) {
+        return res.status(400).json({ erro: errMaterial.message });
+      }
+
+      // Busca professores de apoio vinculados, incluindo nome via join com usuario
+      const { data: professores, error: errProfessor } = await supabase
+        .from('professor_apoio')
+        .select('id_professor_apoio, status, usuario:id_usuario(id_usuario, nome)')
+        .eq('id_materia', id)
+        .neq('status', '2'); // Ignora professores já inativados
+
+      if (errProfessor) {
+        return res.status(400).json({ erro: errProfessor.message });
+      }
+
+      const quantidadeMateriais = materiais?.length ?? 0;
+      const quantidadeProfessores = professores?.length ?? 0;
+      const temDependencias = quantidadeMateriais > 0 || quantidadeProfessores > 0;
+
+      return res.status(200).json({
+        temDependencias,
+        quantidadeMateriais,
+        quantidadeProfessores,
+        materiais: materiais ?? [],
+        professores: professores ?? [],
+      });
+    } catch (err) {
+      console.error('Erro ao verificar dependências:', err);
+      return res.status(500).json({ erro: 'Erro interno ao verificar dependências' });
+    }
+  }
+
   // Método para Excluir uma matéria (soft delete via status)
   async Excluir(req: Request, res: Response): Promise<Response> {
     try {
@@ -75,4 +118,5 @@ export class MateriaController {
       return res.status(500).json({ erro: 'Erro interno ao atualizar matéria' });
     }
   }
-}
+}
+
