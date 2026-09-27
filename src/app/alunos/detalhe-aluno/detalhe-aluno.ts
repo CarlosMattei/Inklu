@@ -21,6 +21,7 @@ import {
   LucideCheck,
   LucidePen,
   LucideUserCheck,
+  LucideTrash2,
 } from '@lucide/angular';
 import { Aluno } from '../card-aluno/card-aluno';
 import { ModalDocumento } from './modal-documento/modal-documento';
@@ -29,6 +30,7 @@ import { ModalConfirmarExclusao } from '../modal-confirmar-exclusao/modal-confir
 import { AlunoService } from '../aluno.service';
 
 export interface Arquivo {
+  id: string | number;
   data: string;
   nome: string;
   alteracao: string;
@@ -57,6 +59,7 @@ export interface Arquivo {
     LucideX,
     LucideCheck,
     LucideUserCheck,
+    LucideTrash2,
     ModalDocumento,
     ModalDadosAdicionais,
     ModalConfirmarExclusao,
@@ -82,6 +85,7 @@ export class DetalheAluno {
   materias: string[] = [];
 
   arquivos: Arquivo[] = [];
+  arquivoMenuAberto: string | number | null = null;
 
   get filteredArquivos(): Arquivo[] {
     return this.arquivos.filter(arquivo => {
@@ -214,6 +218,7 @@ export class DetalheAluno {
       next: (materiais) => {
         this.arquivos = materiais
           .map(material => ({
+            id: material.id_material ?? material.id,
             data: material.data_de_upload ?? material.data_upload,
             nome: material.nome_do_arquivo ?? material.nome_arquivo,
             alteracao: material.tipo_de_material ?? material.tipo_material ?? 'Original',
@@ -352,6 +357,29 @@ export class DetalheAluno {
   toggleFilter(event: Event) {
     event.stopPropagation();
     this.isFilterOpen = !this.isFilterOpen;
+  }
+
+  toggleArquivoMenu(event: Event, arquivo: Arquivo) {
+    event.stopPropagation();
+    this.arquivoMenuAberto = this.arquivoMenuAberto === arquivo.id ? null : arquivo.id;
+  }
+
+  excluirArquivo(arquivo: Arquivo) {
+    this.arquivoMenuAberto = null;
+
+    if (!window.confirm(`Excluir o arquivo "${arquivo.nome}"?`)) return;
+
+    this.alunoService.excluirArquivo(arquivo.id).subscribe({
+      next: () => {
+        if (this.aluno?.id) {
+          this.carregarArquivos(this.aluno.id);
+        }
+      },
+      error: (error) => {
+        console.error('Erro ao excluir arquivo:', error);
+        alert('Não foi possível excluir o arquivo.');
+      },
+    });
   }
 
   toggleMateria(materia: string) {

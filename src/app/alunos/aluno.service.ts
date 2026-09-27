@@ -57,6 +57,10 @@ export class AlunoService {
     return this.http.get<any[]>(`http://localhost:3000/api/arquivos/alunos/${alunoId}`);
   }
 
+  excluirArquivo(id: string | number): Observable<void> {
+    return this.http.delete<void>(`http://localhost:3000/api/arquivos/${id}`);
+  }
+
   listarMaterias(): Observable<any[]> {
     return this.http.get<any[]>('http://localhost:3000/api/arquivos/materias');
   }

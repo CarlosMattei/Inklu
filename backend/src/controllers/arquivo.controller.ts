@@ -130,6 +130,39 @@ export class ArquivoController {
 	async excluir(req: Request, res: Response): Promise<Response> {
 		try {
 			const { id } = req.params;
+			const { data: material, error: materialError } = await supabase
+				.from('material')
+				.select('url_do_arquivo')
+				.eq('id_material', id)
+				.maybeSingle();
+
+			if (materialError) {
+				return res.status(400).json({ erro: materialError.message });
+			}
+
+			if (!material) {
+				return res.status(404).json({ erro: 'Arquivo não encontrado.' });
+			}
+
+			const url = new URL(material.url_do_arquivo);
+			const marcadorCaminho = '/storage/v1/object/public/material-alunos/';
+			const indiceCaminho = url.pathname.indexOf(marcadorCaminho);
+
+			if (indiceCaminho === -1) {
+				return res.status(400).json({ erro: 'Caminho do arquivo inválido.' });
+			}
+
+			const caminhoArquivo = decodeURIComponent(
+				url.pathname.slice(indiceCaminho + marcadorCaminho.length)
+			);
+			const { error: storageError } = await supabase.storage
+				.from('material-alunos')
+				.remove([caminhoArquivo]);
+
+			if (storageError) {
+				return res.status(400).json({ erro: storageError.message });
+			}
+
 			const { error } = await supabase.from('material').delete().eq('id_material', id);
 
 			if (error) {
