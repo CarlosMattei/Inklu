@@ -296,16 +296,26 @@
             </tr>
           </thead>
           <tbody>
-            @for (arquivo of filteredArquivos; track arquivo.nome) {
+            @for (arquivo of filteredArquivos; track arquivo.id) {
               <tr>
                 <td>{{ formatDate(arquivo.data) }}</td>
                 <td>{{ arquivo.nome }}</td>
                 <td>{{ arquivo.alteracao }}</td>
                 <td>{{ arquivo.materia }}</td>
                 <td>
-                  <button class="btn btn-ghost-icon px-3" type="button">
+                  <div class="arquivo-acoes">
+                  <button class="btn btn-ghost-icon px-3" type="button" (click)="toggleArquivoMenu($event, arquivo)" [attr.aria-expanded]="arquivoMenuAberto === arquivo.id" aria-haspopup="true">
                     <svg lucideMoreVertical [size]="16" [strokeWidth]="2"></svg>
                   </button>
+                  @if (arquivoMenuAberto === arquivo.id) {
+                    <div class="arquivo-menu">
+                      <button class="arquivo-menu-item arquivo-menu-item--danger" type="button" (click)="excluirArquivo(arquivo); $event.stopPropagation()">
+                        <svg lucideTrash2 [size]="16" [strokeWidth]="2"></svg>
+                        Excluir
+                      </button>
+                    </div>
+                  }
+                  </div>
                 </td>
               </tr>
             } @empty {
