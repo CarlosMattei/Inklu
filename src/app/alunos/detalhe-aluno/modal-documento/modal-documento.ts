@@ -36,8 +36,11 @@ const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.docx'];
 export class ModalDocumento {
   @Input() isOpen = false;
   @Input() alunoId: number | string | null | undefined;
+  /** Quando true, apenas devolve os arquivos selecionados, sem enviar para a API. */
+  @Input() localOnly = false;
   @Output() closed = new EventEmitter<void>();
   @Output() saved = new EventEmitter<void>();
+  @Output() filesAdded = new EventEmitter<DocumentoFile[]>();
 
   files: DocumentoFile[] = [];
   isDragOver = false;
@@ -148,6 +151,18 @@ export class ModalDocumento {
 
   save() {
     if (this.isSaving) return;
+
+    if (this.localOnly) {
+      const localFiles = this.files.filter(file => file.status === 'done' && file.data);
+      if (localFiles.length === 0) {
+        this.errorMessage = 'Aguarde o carregamento dos arquivos.';
+        return;
+      }
+
+      this.filesAdded.emit(localFiles);
+      this.close();
+      return;
+    }
 
     if (!this.alunoId) {
       this.errorMessage = 'Aluno não identificado.';

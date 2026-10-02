@@ -1,9 +1,9 @@
 import { Component } from '@angular/core';
-import { LucideCalendarCheck, LucideConstruction } from '@lucide/angular';
+import {  LucideConstruction } from '@lucide/angular';
 
 @Component({
   selector: 'app-tarefas',
-  imports: [LucideCalendarCheck, LucideConstruction],
+  imports: [ LucideConstruction],
   templateUrl: './tarefas.html',
   styleUrl: './tarefas.scss',
 })
