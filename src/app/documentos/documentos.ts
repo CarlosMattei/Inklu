@@ -1,4 +1,5 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import {
   LucideArrowLeft,
   LucideChevronRight,
@@ -18,7 +19,10 @@ import {
   LucideTrash2,
   LucideX,
 } from '@lucide/angular';
-import { DocumentoFile, ModalDocumento } from '../alunos/detalhe-aluno/modal-documento/modal-documento';
+import {
+  DocumentoFile,
+  ModalDocumento,
+} from '../alunos/detalhe-aluno/modal-documento/modal-documento';
 import { ModalExclusao } from './modal-exclusao/modal-exclusao';
 import {
   ItemDialogDestination,
@@ -58,22 +62,114 @@ interface ItemRef {
 const daysAgo = (days: number): string => new Date(Date.now() - days * 86_400_000).toISOString();
 
 const INITIAL_FOLDERS: DocumentoFolder[] = [
-  { id: 'f-planejamento', name: 'Planejamento', color: '#3B82F6', parentId: null, createdAt: daysAgo(40), modifiedAt: daysAgo(3) },
-  { id: 'f-planejamento-mensal', name: 'Mensal', color: '#3B82F6', parentId: 'f-planejamento', createdAt: daysAgo(34), modifiedAt: daysAgo(3) },
-  { id: 'f-planejamento-semanal', name: 'Semanal', color: '#22A06B', parentId: 'f-planejamento', createdAt: daysAgo(30), modifiedAt: daysAgo(10) },
-  { id: 'f-materiais', name: 'Materiais de apoio', color: '#E8B931', parentId: null, createdAt: daysAgo(25), modifiedAt: daysAgo(6) },
-  { id: 'f-adaptadas', name: 'Atividades adaptadas', color: '#E87932', parentId: 'f-materiais', createdAt: daysAgo(20), modifiedAt: daysAgo(1) },
-  { id: 'f-avaliacoes', name: 'Avaliações', color: '#D94F5C', parentId: null, createdAt: daysAgo(12), modifiedAt: daysAgo(0) },
+  {
+    id: 'f-planejamento',
+    name: 'Planejamento',
+    color: '#3B82F6',
+    parentId: null,
+    createdAt: daysAgo(40),
+    modifiedAt: daysAgo(3),
+  },
+  {
+    id: 'f-planejamento-mensal',
+    name: 'Mensal',
+    color: '#3B82F6',
+    parentId: 'f-planejamento',
+    createdAt: daysAgo(34),
+    modifiedAt: daysAgo(3),
+  },
+  {
+    id: 'f-planejamento-semanal',
+    name: 'Semanal',
+    color: '#22A06B',
+    parentId: 'f-planejamento',
+    createdAt: daysAgo(30),
+    modifiedAt: daysAgo(10),
+  },
+  {
+    id: 'f-materiais',
+    name: 'Materiais de apoio',
+    color: '#E8B931',
+    parentId: null,
+    createdAt: daysAgo(25),
+    modifiedAt: daysAgo(6),
+  },
+  {
+    id: 'f-adaptadas',
+    name: 'Atividades adaptadas',
+    color: '#E87932',
+    parentId: 'f-materiais',
+    createdAt: daysAgo(20),
+    modifiedAt: daysAgo(1),
+  },
+  {
+    id: 'f-avaliacoes',
+    name: 'Avaliações',
+    color: '#D94F5C',
+    parentId: null,
+    createdAt: daysAgo(12),
+    modifiedAt: daysAgo(0),
+  },
 ];
 
 const INITIAL_FILES: DocumentoArquivo[] = [
-  { id: 'a-plano-anual', name: 'Plano anual 2026.pdf', size: 512_000, type: 'application/pdf', folderId: 'f-planejamento', modifiedAt: daysAgo(3), description: 'Documento base do ano letivo.' },
-  { id: 'a-planejamento-marco', name: 'Planejamento março.docx', size: 88_000, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', folderId: 'f-planejamento-mensal', modifiedAt: daysAgo(3) },
-  { id: 'a-rotina-semanal', name: 'Rotina semanal.png', size: 240_000, type: 'image/png', folderId: 'f-planejamento-semanal', modifiedAt: daysAgo(10) },
-  { id: 'a-cartoes', name: 'Cartões de apoio.pdf', size: 1_200_000, type: 'application/pdf', folderId: 'f-adaptadas', modifiedAt: daysAgo(1) },
-  { id: 'a-prova-adaptada', name: 'Prova adaptada.docx', size: 64_000, type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', folderId: 'f-avaliacoes', modifiedAt: daysAgo(0) },
-  { id: 'a-notas-turma', name: 'Notas da turma.xlsx', size: 32_000, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', folderId: 'f-avaliacoes', modifiedAt: daysAgo(0) },
-  { id: 'a-orientacoes', name: 'Orientações gerais.pdf', size: 420_000, type: 'application/pdf', folderId: null, modifiedAt: daysAgo(8) },
+  {
+    id: 'a-plano-anual',
+    name: 'Plano anual 2026.pdf',
+    size: 512_000,
+    type: 'application/pdf',
+    folderId: 'f-planejamento',
+    modifiedAt: daysAgo(3),
+    description: 'Documento base do ano letivo.',
+  },
+  {
+    id: 'a-planejamento-marco',
+    name: 'Planejamento março.docx',
+    size: 88_000,
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    folderId: 'f-planejamento-mensal',
+    modifiedAt: daysAgo(3),
+  },
+  {
+    id: 'a-rotina-semanal',
+    name: 'Rotina semanal.png',
+    size: 240_000,
+    type: 'image/png',
+    folderId: 'f-planejamento-semanal',
+    modifiedAt: daysAgo(10),
+  },
+  {
+    id: 'a-cartoes',
+    name: 'Cartões de apoio.pdf',
+    size: 1_200_000,
+    type: 'application/pdf',
+    folderId: 'f-adaptadas',
+    modifiedAt: daysAgo(1),
+  },
+  {
+    id: 'a-prova-adaptada',
+    name: 'Prova adaptada.docx',
+    size: 64_000,
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    folderId: 'f-avaliacoes',
+    modifiedAt: daysAgo(0),
+  },
+  {
+    id: 'a-notas-turma',
+    name: 'Notas da turma.xlsx',
+    size: 32_000,
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    folderId: 'f-avaliacoes',
+    modifiedAt: daysAgo(0),
+  },
+  {
+    id: 'a-orientacoes',
+    name: 'Orientações gerais.pdf',
+    size: 420_000,
+    type: 'application/pdf',
+    folderId: null,
+    modifiedAt: daysAgo(8),
+  },
 ];
 
 @Component({
@@ -108,6 +204,8 @@ const INITIAL_FILES: DocumentoArquivo[] = [
   styleUrl: './documentos.scss',
 })
 export class Documentos {
+  private readonly router = inject(Router);
+
   readonly folderColors = [
     { name: 'Azul', value: '#3B82F6' },
     { name: 'Verde', value: '#22A06B' },
@@ -139,7 +237,9 @@ export class Documentos {
   readonly itemDialog = signal<(ItemRef & { mode: ItemDialogMode }) | null>(null);
   readonly deleteTarget = signal<ItemRef | null>(null);
 
-  readonly currentFolder = computed(() => this.folders().find((folder) => folder.id === this.currentFolderId()) ?? null);
+  readonly currentFolder = computed(
+    () => this.folders().find((folder) => folder.id === this.currentFolderId()) ?? null,
+  );
 
   readonly breadcrumb = computed(() => {
     const folders = this.folders();
@@ -167,7 +267,7 @@ export class Documentos {
       .sort((first, second) =>
         order === 'name' || order === 'type'
           ? first.name.localeCompare(second.name, 'pt-BR', { sensitivity: 'base' })
-          : Date.parse(second.modifiedAt) - Date.parse(first.modifiedAt)
+          : Date.parse(second.modifiedAt) - Date.parse(first.modifiedAt),
       );
   });
 
@@ -198,11 +298,17 @@ export class Documentos {
       });
   });
 
-  readonly isEmpty = computed(() => this.visibleFolders().length === 0 && this.visibleFiles().length === 0);
-  readonly hasActiveFilters = computed(() => this.fileType() !== 'all' || this.modifiedPeriod() !== 'any');
-  readonly filterCount = computed(() => (this.fileType() === 'all' ? 0 : 1) + (this.modifiedPeriod() === 'any' ? 0 : 1));
+  readonly isEmpty = computed(
+    () => this.visibleFolders().length === 0 && this.visibleFiles().length === 0,
+  );
+  readonly hasActiveFilters = computed(
+    () => this.fileType() !== 'all' || this.modifiedPeriod() !== 'any',
+  );
+  readonly filterCount = computed(
+    () => (this.fileType() === 'all' ? 0 : 1) + (this.modifiedPeriod() === 'any' ? 0 : 1),
+  );
   readonly folderSuggestionLabel = computed(() =>
-    ['Documentos', ...this.breadcrumb().map((folder) => folder.name)].join(' / ')
+    ['Documentos', ...this.breadcrumb().map((folder) => folder.name)].join(' / '),
   );
 
   // ─── Item dialog (renomear / editar / mover) ──────────────────────────────
@@ -222,7 +328,9 @@ export class Documentos {
     const walk = (parentId: string | null, depth: number): void => {
       this.folders()
         .filter((folder) => folder.parentId === parentId && !blocked.includes(folder.id))
-        .sort((first, second) => first.name.localeCompare(second.name, 'pt-BR', { sensitivity: 'base' }))
+        .sort((first, second) =>
+          first.name.localeCompare(second.name, 'pt-BR', { sensitivity: 'base' }),
+        )
         .forEach((folder) => {
           const current = folder.id === currentParentId ? ' (atual)' : '';
           options.push({ id: folder.id, label: `${'— '.repeat(depth)}${folder.name}${current}` });
@@ -239,7 +347,9 @@ export class Documentos {
   readonly deleteDialogName = computed(() => {
     const target = this.deleteTarget();
     if (!target) return '';
-    return target.kind === 'folder' ? this.folderById(target.id)?.name ?? '' : this.fileById(target.id)?.name ?? '';
+    return target.kind === 'folder'
+      ? (this.folderById(target.id)?.name ?? '')
+      : (this.fileById(target.id)?.name ?? '');
   });
   readonly deleteDialogMessage = computed(() => {
     const target = this.deleteTarget();
@@ -274,7 +384,9 @@ export class Documentos {
   }
 
   updateModifiedPeriod(event: Event): void {
-    this.modifiedPeriod.set((event.target as HTMLSelectElement).value as 'any' | 'today' | 'week' | 'month');
+    this.modifiedPeriod.set(
+      (event.target as HTMLSelectElement).value as 'any' | 'today' | 'week' | 'month',
+    );
   }
 
   resetFilters(): void {
@@ -378,8 +490,8 @@ export class Documentos {
                 name: target.mode === 'move' ? folder.name : result.name,
                 parentId: target.mode === 'move' ? result.destinationId : folder.parentId,
               }
-            : folder
-        )
+            : folder,
+        ),
       );
     } else {
       this.files.update((files) =>
@@ -391,8 +503,8 @@ export class Documentos {
                 description: target.mode === 'move' ? file.description : result.description,
                 folderId: target.mode === 'move' ? result.destinationId : file.folderId,
               }
-            : file
-        )
+            : file,
+        ),
       );
     }
 
@@ -434,6 +546,29 @@ export class Documentos {
     }
 
     this.closeItemMenus();
+  }
+
+  // ─── Editor de documentos ─────────────────────────────────────────────────
+
+  /**
+   * Abre a tela de editor para o arquivo informado.
+   * Só navega para formatos editáveis; o nome vai por query string porque o
+   * backend ainda não expõe os metadados do documento.
+   */
+  openEditor(fileId: string): void {
+    const file = this.fileById(fileId);
+    if (!file || !this.isEditable(file)) return;
+
+    this.closeItemMenus();
+    void this.router.navigate(['/documentos/editor', file.id], {
+      queryParams: { name: file.name },
+    });
+  }
+
+  /** Indica se o arquivo pode ser aberto no editor de documentos. */
+  isEditable(file: DocumentoArquivo): boolean {
+    const extension = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+    return ['docx', 'doc', 'pdf', 'txt', 'odt', 'rtf'].includes(extension);
   }
 
   openFileDialog(folderId: string | null = this.currentFolderId()): void {
@@ -496,7 +631,9 @@ export class Documentos {
   private itemDialogItem(): DocumentoFolder | DocumentoArquivo | null {
     const target = this.itemDialog();
     if (!target) return null;
-    return (target.kind === 'folder' ? this.folderById(target.id) : this.fileById(target.id)) ?? null;
+    return (
+      (target.kind === 'folder' ? this.folderById(target.id) : this.fileById(target.id)) ?? null
+    );
   }
 
   private itemDialogFile(): DocumentoArquivo | null {
@@ -508,8 +645,8 @@ export class Documentos {
     const target = this.itemDialog();
     if (!target) return null;
     return target.kind === 'folder'
-      ? this.folderById(target.id)?.parentId ?? null
-      : this.fileById(target.id)?.folderId ?? null;
+      ? (this.folderById(target.id)?.parentId ?? null)
+      : (this.fileById(target.id)?.folderId ?? null);
   }
 
   private folderById(folderId: string): DocumentoFolder | undefined {

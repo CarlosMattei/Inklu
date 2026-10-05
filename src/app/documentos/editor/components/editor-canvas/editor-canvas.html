@@ -1,0 +1,15 @@
+<!-- Folha A4 com zoom aplicado via transform (não afeta o layout de rolagem) -->
+<div class="canvas-zoom-container" [style.transform]="'scale(' + zoom / 100 + ')'">
+  <div class="sheet-stack">
+    <div #sheet class="a4-sheet" [class.is-loading]="isLoading"></div>
+
+    <!-- Guias de quebra de página (overlay, fora da árvore do ProseMirror) -->
+    @if (pageCount > 1) {
+      <div class="page-guides" aria-hidden="true">
+        @for (guide of guides(); track guide.page) {
+          <span class="page-guide" [style.top]="guide.top">Página {{ guide.page }}</span>
+        }
+      </div>
+    }
+  </div>
+</div>
