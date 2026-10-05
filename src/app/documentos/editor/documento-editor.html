@@ -1,0 +1,113 @@
+<div class="editor-shell">
+  <!-- Cabeçalho: voltar, nome do documento e ações -->
+  <header class="editor-header">
+    <div class="header-left">
+      <button
+        type="button"
+        class="btn-back"
+        title="Voltar para Documentos"
+        aria-label="Voltar para Documentos"
+        (click)="goBack()"
+      >
+        <svg lucideArrowLeft [size]="20" aria-hidden="true"></svg>
+      </button>
+
+      <div class="title-container">
+        <input
+          type="text"
+          class="input-title"
+          placeholder="Nome do documento"
+          aria-label="Nome do documento"
+          [ngModel]="documentName()"
+          (ngModelChange)="onNameChange($event)"
+        />
+        <span class="badge-format">{{ originalFormat() | uppercase }}</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <span class="stat-words">{{ wordCount() }} palavras</span>
+
+      <div class="zoom-widget" role="group" aria-label="Controle de zoom">
+        <button
+          type="button"
+          [disabled]="zoomLevel() <= 50"
+          aria-label="Diminuir zoom"
+          (click)="onZoomOut()"
+        >
+          <svg lucideZoomOut [size]="16" aria-hidden="true"></svg>
+        </button>
+        <span class="zoom-value">{{ zoomLevel() }}%</span>
+        <button
+          type="button"
+          [disabled]="zoomLevel() >= 200"
+          aria-label="Aumentar zoom"
+          (click)="onZoomIn()"
+        >
+          <svg lucideZoomIn [size]="16" aria-hidden="true"></svg>
+        </button>
+      </div>
+
+      <button type="button" class="btn-save" [disabled]="!canSave()" (click)="save()">
+        <svg lucideSave [size]="16" aria-hidden="true"></svg>
+        {{ isSaving() ? 'Salvando...' : 'Salvar' }}
+      </button>
+    </div>
+  </header>
+
+  <!-- Barra de formatação -->
+  <app-editor-toolbar
+    [state]="toolbarState()"
+    [fontSize]="fontSize()"
+    [disabled]="isLoading() || !editorReady()"
+    (command)="runCommand($event)"
+    (fontSizeChange)="setFontSize($event)"
+  ></app-editor-toolbar>
+
+  @if (errorMessage()) {
+    <p class="editor-error" role="alert">{{ errorMessage() }}</p>
+  }
+
+  <!-- Corpo: ilha de páginas (esquerda) + área de rolagem com a folha A4 -->
+  <div class="editor-body">
+    <app-editor-pages
+      [pageCount]="pageCount()"
+      [currentPage]="currentPage()"
+      (pageSelect)="goToPage($event)"
+    ></app-editor-pages>
+
+    <main class="editor-viewport" #viewport (scroll)="onViewportScroll()">
+      <app-editor-canvas
+        [zoom]="zoomLevel()"
+        [isLoading]="isLoading()"
+        [pageCount]="pageCount()"
+      ></app-editor-canvas>
+    </main>
+  </div>
+
+  <!-- Rodapé de status -->
+  <footer class="editor-statusbar">
+    @if (hasUnsavedChanges()) {
+      <span class="status-indicator dirty">Alterações não salvas</span>
+    } @else {
+      <span class="status-indicator saved">Todas as alterações salvas</span>
+    }
+  </footer>
+
+  <!-- Overlay de carregamento (conversão do documento) -->
+  @if (isLoading()) {
+    <div class="loading-backdrop" role="status" aria-live="polite">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p>Convertendo e preparando documento...</p>
+    </div>
+  }
+
+  <!-- Confirmação de saída com alterações pendentes -->
+  <app-modal-saida
+    [isOpen]="exitDialogOpen()"
+    [saving]="isSaving()"
+    (closed)="onExitCancel()"
+    (discard)="onExitDiscard()"
+    (save)="onExitSave()"
+  ></app-modal-saida>
+</div>

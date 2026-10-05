@@ -611,6 +611,7 @@
 
 .file-card {
   display: flex;
+  cursor: pointer;
   align-items: center;
   gap: var(--ds-spacing-3);
   min-width: 0;
