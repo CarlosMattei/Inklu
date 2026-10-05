@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   ElementRef,
+  HostListener,
   inject,
   OnDestroy,
   OnInit,
@@ -34,6 +35,9 @@ import { ModalSaida } from './components/modal-saida/modal-saida';
 import { DocumentConverterService } from './services/document-converter.service';
 import { EditorStateService } from './services/editor-state.service';
 import { PendingChangesAware } from './pending-changes.guard';
+import { PlanoService } from './services/plano.service';
+import { EditablePlano, StatusPlano, TipoPlano } from './models/plano.model';
+import { PlanField, PlanFixed } from './plan-nodes';
 import {
   DEFAULT_TOOLBAR_STATE,
   EditableDocumentFormat,
@@ -78,6 +82,7 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
   private readonly router = inject(Router);
   private readonly converter = inject(DocumentConverterService);
   private readonly state = inject(EditorStateService);
+  private readonly planos = inject(PlanoService);
 
   /** Referência ao canvas para descobrir o elemento onde montar o TipTap. */
   @ViewChild(EditorCanvas) private canvas?: EditorCanvas;
@@ -107,6 +112,17 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
   readonly errorMessage = signal<string | null>(null);
   readonly wordCount = signal(0);
   readonly toolbarState = signal<EditorToolbarState>(DEFAULT_TOOLBAR_STATE);
+  readonly planoType = signal<TipoPlano | null>(null);
+  readonly alunoId = signal<string | null>(null);
+  readonly baseVersionId = signal<string | null>(null);
+  readonly bimestre = signal('1');
+  readonly anoLetivo = signal(new Date().getFullYear());
+  readonly planoStatus = signal<StatusPlano>('rascunho');
+  readonly readOnly = signal(false);
+  readonly warnings = signal<string[]>([]);
+  readonly successMessage = signal('');
+  readonly isExporting = signal(false);
+  readonly canExport = computed(() => this.planoStatus() === 'finalizado' && !!this.baseVersionId() && !this.hasUnsavedChanges() && !this.isSaving() && !this.isExporting());
 
   // ─── Páginas e modal de saída ─────────────────────────────────────────────
   readonly pageCount = signal(1);
@@ -115,7 +131,9 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
 
   /** Só permite salvar quando há alterações reais e conteúdo não vazio. */
   readonly canSave = computed(
-    () => !this.isSaving() && this.hasUnsavedChanges() && this.wordCount() > 0,
+    () => this.planoType()
+      ? this.editorReady() && !this.isLoading() && !this.isSaving() && !this.readOnly()
+      : !this.isSaving() && this.hasUnsavedChanges() && this.wordCount() > 0,
   );
 
   ngOnInit(): void {
@@ -129,6 +147,18 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
     this.state.reset();
     this.currentPage.set(1);
     this.documentId.set(id);
+    const alunoId = this.route.snapshot.paramMap.get('alunoId');
+    const type = this.route.snapshot.paramMap.get('tipo');
+    if (alunoId) {
+      if (type !== 'pei' && type !== 'paee') {
+        this.isLoading.set(false);
+        this.errorMessage.set('Tipo de plano inválido.');
+        return;
+      }
+      this.alunoId.set(alunoId);
+      this.planoType.set(type);
+      this.readOnly.set(this.route.snapshot.queryParamMap.get('leitura') === '1');
+    }
     void this.loadDocument(id);
   }
 
@@ -158,7 +188,12 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
     const fallbackName = this.route.snapshot.queryParamMap.get('name') ?? undefined;
 
     try {
-      const document = await this.converter.getDocumentForEditing(id, fallbackName);
+      const type = this.planoType();
+      const alunoId = this.alunoId();
+      const document = type && alunoId
+        ? (id === 'novo' ? await this.planos.template(alunoId, type, this.bimestre(), this.anoLetivo()) : await this.planos.get(alunoId, type, id))
+        : await this.converter.getDocumentForEditing(id, fallbackName);
+      if (type) this.setPlanoMetadata(document as EditablePlano);
       this.state.setDocument(document);
       this.originalFormat.set(document.originalFormat);
 
@@ -172,7 +207,7 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
       }
     } catch (error) {
       console.error('Falha ao carregar documento:', error);
-      this.errorMessage.set('Não foi possível carregar o documento para edição.');
+      this.errorMessage.set(this.errorText(error, 'Não foi possível carregar o documento para edição.'));
     } finally {
       this.isLoading.set(false);
     }
@@ -201,12 +236,15 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
         TableRowExtension,
         TableHeaderExtension,
         TableCellExtension,
+        ...(this.planoType() ? [PlanFixed, PlanField] : []),
       ],
+      editable: !this.readOnly() && !this.isSaving(),
       content,
       editorProps: { attributes: { class: 'editor-content' } },
       onUpdate: () => {
         // Qualquer edição marca o documento como "sujo" e atualiza a UI.
         this.state.markDirty();
+        this.successMessage.set('');
         this.syncToolbarState();
         this.updateWordCount();
         this.recomputePages();
@@ -379,6 +417,77 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
     this.state.setName(name);
   }
 
+  private setPlanoMetadata(plano: EditablePlano): void {
+    this.baseVersionId.set(plano.id === 'novo' ? null : plano.id);
+    this.bimestre.set(plano.bimestre);
+    this.anoLetivo.set(plano.anoLetivo);
+    this.planoStatus.set(plano.status);
+    this.warnings.set(plano.warnings);
+  }
+
+  async onPeriodChange(): Promise<void> {
+    const alunoId = this.alunoId(); const type = this.planoType();
+    if (!alunoId || !type || this.baseVersionId()) return;
+    this.state.markDirty();
+    if (!Number.isInteger(this.anoLetivo()) || this.anoLetivo() < 2000 || this.anoLetivo() > 2100) return;
+    const bimestre = this.bimestre(); const ano = this.anoLetivo();
+    try {
+      const template = await this.planos.template(alunoId, type, bimestre, ano);
+      if (bimestre !== this.bimestre() || ano !== this.anoLetivo() || !this.editor) return;
+      const dom = new DOMParser().parseFromString(DOMPurify.sanitize(template.htmlContent), 'text/html');
+      const header = dom.querySelector('[data-plan-fixed="header"]')?.innerHTML;
+      if (!header) return;
+      const transaction = this.editor.state.tr;
+      this.editor.state.doc.forEach((node, position) => {
+        if (node.type.name === 'planFixed' && node.attrs['role'] === 'header') transaction.setNodeMarkup(position, undefined, { ...node.attrs, html: header });
+      });
+      this.editor.view.dispatch(transaction);
+    } catch (error) { this.errorMessage.set(this.errorText(error, 'Não foi possível atualizar o período.')); }
+  }
+
+  async importPlano(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0]; input.value = '';
+    const alunoId = this.alunoId(); const type = this.planoType();
+    if (!file || !alunoId || !type || this.isSaving() || this.baseVersionId()) return;
+    if (!/\.(docx|pdf)$/i.test(file.name) || file.size > 15 * 1024 * 1024) {
+      this.errorMessage.set('Envie um arquivo PDF ou DOCX com até 15 MB.'); return;
+    }
+    if (this.hasUnsavedChanges() && !window.confirm('Substituir as respostas atuais pelo arquivo importado?')) return;
+    this.isLoading.set(true); this.errorMessage.set(null);
+    try {
+      const plano = await this.planos.import(alunoId, type, file, this.bimestre(), this.anoLetivo());
+      this.setPlanoMetadata(plano); this.state.setDocument(plano);
+      this.originalFormat.set(plano.originalFormat);
+      this.initEditor(DOMPurify.sanitize(plano.htmlContent));
+      this.state.markDirty();
+    } catch (error) { this.errorMessage.set(this.errorText(error, 'Não foi possível importar o arquivo.')); }
+    finally { this.isLoading.set(false); }
+  }
+
+  async exportPlano(format: 'pdf' | 'docx'): Promise<void> {
+    const alunoId = this.alunoId(); const type = this.planoType(); const id = this.baseVersionId();
+    if (!alunoId || !type || !id || !this.canExport()) return;
+    this.isExporting.set(true); this.errorMessage.set(null);
+    try {
+      const blob = await this.planos.export(alunoId, type, id, format);
+      const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
+      anchor.href = url; anchor.download = `${this.documentName().replace(/\.[^.]+$/, '')}.${format}`; anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { this.errorMessage.set(this.errorText(error, 'Não foi possível exportar o plano.')); }
+    finally { this.isExporting.set(false); }
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnload(event: BeforeUnloadEvent): void {
+    if (this.hasUnsavedChanges()) { event.preventDefault(); event.returnValue = ''; }
+  }
+
+  private errorText(error: unknown, fallback: string): string {
+    const response = error as { error?: { erro?: string }; message?: string };
+    return response?.error?.erro || fallback;
+  }
+
   onZoomIn(): void {
     this.state.zoomIn();
     this.schedulePageSync();
@@ -396,16 +505,31 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
 
   // ─── Salvamento / navegação ───────────────────────────────────────────────
 
-  async save(): Promise<void> {
+  async save(status: StatusPlano = 'rascunho'): Promise<void> {
     const editor = this.editor;
     const id = this.documentId();
-    if (!editor || !id) return;
+    if (!editor || !id || this.isSaving() || this.readOnly() || this.isLoading()) return;
 
     this.state.setSaving(true);
     this.errorMessage.set(null);
+    editor.setEditable(false);
 
     try {
       const html = editor.getHTML();
+      const alunoId = this.alunoId(); const type = this.planoType();
+      if (alunoId && type) {
+        const plano = await this.planos.save(alunoId, type, {
+          name: this.documentName(), bimestre: this.bimestre(), anoLetivo: this.anoLetivo(),
+          status, htmlContent: html, baseVersionId: this.baseVersionId(), originalFormat: this.originalFormat(),
+        });
+        this.setPlanoMetadata(plano);
+        this.state.setDocument(plano);
+        this.initEditor(DOMPurify.sanitize(plano.htmlContent));
+        this.successMessage.set(status === 'finalizado' ? 'Plano finalizado. Você já pode exportar esta versão.' : 'Rascunho salvo. As versões anteriores foram preservadas.');
+        // A URL identifica a versão persistida, inclusive depois de atualizar a página.
+        await this.router.navigate(['/alunos', alunoId, 'planos', type, plano.id], { replaceUrl: true });
+        return;
+      }
       const result = await this.converter.saveDocument(id, html, 'docx', {
         name: this.documentName(),
         fontSize: Number.parseInt(this.fontSize(), 10),
@@ -421,15 +545,16 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
       }
     } catch (error) {
       console.error('Erro ao salvar documento:', error);
-      this.errorMessage.set('Não foi possível salvar o documento.');
+      this.errorMessage.set(this.errorText(error, 'Não foi possível salvar o documento.'));
     } finally {
       this.state.setSaving(false);
+      this.editor?.setEditable(!this.readOnly());
     }
   }
 
   goBack(): void {
     if (!this.hasUnsavedChanges()) {
-      void this.router.navigate(['/documentos']);
+      void this.router.navigate(this.alunoId() ? ['/alunos', this.alunoId()] : ['/documentos']);
       return;
     }
 
@@ -437,7 +562,7 @@ export class DocumentoEditor implements OnInit, AfterViewInit, OnDestroy, Pendin
     void this.requestExit().then((canLeave) => {
       if (!canLeave) return;
       this.skipGuard = true;
-      void this.router.navigate(['/documentos']);
+      void this.router.navigate(this.alunoId() ? ['/alunos', this.alunoId()] : ['/documentos']);
     });
   }
 

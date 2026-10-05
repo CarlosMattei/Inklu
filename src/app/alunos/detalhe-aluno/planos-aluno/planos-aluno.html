@@ -1,0 +1,30 @@
+<section class="plans-panel" aria-labelledby="plans-title">
+  <div class="plans-header">
+    <div><h2 id="plans-title">Planos educacionais</h2><p>PEI e PAEE deste aluno, organizados por bimestre e versão.</p></div>
+    <div class="plans-actions">
+      <a class="btn btn-primary" [routerLink]="['/alunos', alunoId, 'planos', 'pei', 'novo']">Criar PEI</a>
+      <a class="btn btn-primary-outline" [routerLink]="['/alunos', alunoId, 'planos', 'paee', 'novo']">Criar PAEE</a>
+    </div>
+  </div>
+  <label class="history-toggle"><input type="checkbox" [checked]="showHistory()" (change)="showHistory.set(!showHistory())"> Mostrar todas as versões anteriores</label>
+  @if (loading()) { <p role="status">Carregando planos...</p> }
+  @else if (error()) { <p role="alert">{{ error() }} <button class="btn btn-primary-outline" type="button" (click)="load()">Tentar novamente</button></p> }
+  @else {
+    <div class="plans-table-wrapper"><table class="table">
+      <thead><tr><th>Plano</th><th>Período</th><th>Status</th><th>Criado em</th><th>Ações</th></tr></thead>
+      <tbody>
+        @for (plan of visiblePlans(); track plan.id) {
+          <tr><td>{{ plan.name }}<small>{{ plan.type === 'pei' ? 'PEI' : 'PAEE' }}</small></td>
+            <td>{{ plan.bimestre }}º bimestre / {{ plan.anoLetivo }}</td>
+            <td>{{ plan.status === 'rascunho' ? 'Rascunho' : 'Finalizado' }}</td>
+            <td>{{ plan.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
+            <td><div class="plans-actions">
+              <a class="btn btn-primary-outline" [routerLink]="['/alunos', alunoId, 'planos', plan.type, plan.id]" [queryParams]="{leitura: '1'}">Visualizar</a>
+              <a class="btn btn-primary-outline" [routerLink]="['/alunos', alunoId, 'planos', plan.type, plan.id]">{{ plan.status === 'rascunho' ? 'Continuar' : 'Criar nova versão' }}</a>
+            </div></td>
+          </tr>
+        } @empty { <tr><td colspan="5">Nenhum PEI ou PAEE registrado para este aluno.</td></tr> }
+      </tbody>
+    </table></div>
+  }
+</section>

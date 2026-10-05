@@ -58,6 +58,11 @@
     margin: 0;
   }
 
+  [data-plan-field] { margin: 1.25em 0; }
+  [data-plan-field] > h3 { font-size: 11pt; margin-bottom: .5em; }
+  [data-plan-content] { min-height: 3em; padding: .5em; border: 1px solid #d1d5db; border-radius: 4px; }
+  [data-plan-fixed] { color: #454545; }
+
   h1 {
     font-size: 22pt;
   }
