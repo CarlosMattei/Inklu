@@ -62,6 +62,7 @@
     [disabled]="isLoading() || !editorReady()"
     (command)="runCommand($event)"
     (fontSizeChange)="setFontSize($event)"
+    (editPage)="onEditPage()"
   ></app-editor-toolbar>
 
   @if (errorMessage()) {
@@ -81,6 +82,7 @@
         [zoom]="zoomLevel()"
         [isLoading]="isLoading()"
         [pageCount]="pageCount()"
+        [pageSettings]="pageSettings()"
       ></app-editor-canvas>
     </main>
   </div>
@@ -110,4 +112,12 @@
     (discard)="onExitDiscard()"
     (save)="onExitSave()"
   ></app-modal-saida>
+
+  <!-- Configurações da página -->
+  <app-modal-pagina
+    [isOpen]="pageDialogOpen()"
+    [settings]="pageSettings()"
+    (closed)="onPageCancel()"
+    (saved)="onPageSave($event)"
+  ></app-modal-pagina>
 </div>
