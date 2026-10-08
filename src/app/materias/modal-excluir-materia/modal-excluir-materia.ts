@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LucideAlertTriangle, LucideX } from '@lucide/angular';
-import { Materia } from '../materia.service';
+import { Materia, MateriaDependencias, MateriaDependenciaAluno, MateriaDependenciaUsuario } from '../materia.service';
 
 @Component({
   selector: 'app-modal-excluir-materia',
@@ -28,12 +28,64 @@ import { Materia } from '../materia.service';
             @if (materia?.nome) {
               <p class="modal-target">{{ materia!.nome }}</p>
             }
-            <p class="modal-message">Esta ação irá inativar a matéria e não poderá ser desfeita facilmente.</p>
+            @if (!dependencias) {
+              <p class="modal-message">Esta ação irá inativar a matéria. Antes de continuar, vamos verificar se há materiais ou professores vinculados.</p>
+            } @else {
+              @if (dependencias.temDependencias) {
+                <p class="modal-message">Esta matéria possui vínculos. Revise-os antes de confirmar a inativação.</p>
+                @if (dependencias.quantidadeMateriais > 0) {
+                  <section class="dependency-section" aria-labelledby="materia-materiais-title">
+                    <h3 id="materia-materiais-title" class="dependency-title">Materiais ({{ dependencias.quantidadeMateriais }})</h3>
+                    <ul class="dependency-list">
+                      @for (material of dependencias.materiais; track material.id_material) {
+                        <li>
+                          <strong>{{ material.nome_do_arquivo || 'Material sem nome' }}</strong>
+                          @if (material.aluno; as aluno) {
+                            <span> — Aluno: {{ nomeAluno(aluno) }}</span>
+                          }
+                          @if (material.tipo_de_material) {
+                            <span> ({{ material.tipo_de_material }})</span>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  </section>
+                }
+                @if (dependencias.quantidadeProfessores > 0) {
+                  <section class="dependency-section" aria-labelledby="materia-professores-title">
+                    <h3 id="materia-professores-title" class="dependency-title">Professores de apoio ({{ dependencias.quantidadeProfessores }})</h3>
+                    <ul class="dependency-list">
+                      @for (professor of dependencias.professores; track professor.id_professor_apoio) {
+                        <li>{{ nomeProfessor(professor.usuario) }}</li>
+                      }
+                    </ul>
+                  </section>
+                }
+                <p class="modal-message">Se continuar, a matéria será inativada, mas os vínculos permanecerão.</p>
+              } @else {
+                <p class="modal-message">Nenhum material ou professor de apoio está vinculado. A matéria será inativada.</p>
+              }
+            }
+            @if (errorMessage) {
+              <p class="error-message" role="alert">{{ errorMessage }}</p>
+            }
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-cancel" type="button" (click)="close()">Cancelar</button>
-            <button class="btn btn-delete" type="button" (click)="confirm()">Sim, excluir</button>
+            <button class="btn btn-cancel" type="button" (click)="close()" [disabled]="isBusy">Cancelar</button>
+            <button class="btn btn-delete" type="button" (click)="confirm()" [disabled]="isBusy">
+              @if (isVerifying) {
+                Verificando vínculos...
+              } @else if (isDeleting) {
+                Inativando...
+              } @else if (dependencias?.temDependencias) {
+                Inativar mesmo assim
+              } @else if (dependencias) {
+                Inativar matéria
+              } @else {
+                Verificar vínculos
+              }
+            </button>
           </div>
         </div>
       </div>
@@ -52,7 +104,7 @@ import { Materia } from '../materia.service';
     }
     .modal-container {
       display: flex;
-      width: min(100%, 420px);
+      width: min(100%, 560px);
       max-height: 90vh;
       flex-direction: column;
       border: 1px solid var(--ds-border);
@@ -90,10 +142,14 @@ import { Materia } from '../materia.service';
       cursor: pointer;
     }
     .btn-close:hover { background: var(--ds-neutral-100, #f0f0f0); color: var(--ds-body, #111); }
-    .modal-body { padding: 1rem; }
+    .modal-body { padding: 1rem; overflow-y: auto; }
     .modal-title { margin: 0; font-size: 1.125rem; font-weight: 700; }
     .modal-target { margin: 0.75rem 0 0; font-weight: 600; overflow-wrap: anywhere; }
     .modal-message { margin: 0.5rem 0 0; color: var(--ds-muted, #666); line-height: 1.5; }
+    .dependency-section { margin-top: 1rem; }
+    .dependency-title { margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: 700; }
+    .dependency-list { display: grid; gap: 0.35rem; margin: 0; padding-left: 1.25rem; overflow-wrap: anywhere; }
+    .error-message { margin: 0.75rem 0 0; color: var(--ds-danger, #c0392b); }
     .modal-footer {
       display: flex;
       justify-content: flex-end;
@@ -117,13 +173,22 @@ import { Materia } from '../materia.service';
     .btn-cancel:hover { background: var(--ds-neutral-100, #f0f0f0); }
     .btn-delete { border-color: var(--ds-danger, #c0392b); background: var(--ds-danger, #c0392b); color: #fff; }
     .btn-delete:hover { filter: brightness(0.94); }
+    .btn:disabled { cursor: not-allowed; opacity: 0.65; }
   `]
 })
 export class ModalExcluirMateria {
   @Input() isOpen = false;
   @Input() materia: Materia | null = null;
+  @Input() dependencias: MateriaDependencias | null = null;
+  @Input() isVerifying = false;
+  @Input() isDeleting = false;
+  @Input() errorMessage = '';
   @Output() confirmed = new EventEmitter<void>();
   @Output() closed = new EventEmitter<void>();
+
+  get isBusy(): boolean {
+    return this.isVerifying || this.isDeleting;
+  }
 
   onBackdropClick(event: MouseEvent): void {
     if ((event.target as HTMLElement).classList.contains('modal-overlay')) {
@@ -132,16 +197,30 @@ export class ModalExcluirMateria {
   }
 
   onEscape(): void {
-    if (this.isOpen) {
+    if (this.isOpen && !this.isBusy) {
       this.close();
     }
   }
 
   close(): void {
-    this.closed.emit();
+    if (!this.isBusy) {
+      this.closed.emit();
+    }
   }
 
   confirm(): void {
-    this.confirmed.emit();
+    if (!this.isBusy) {
+      this.confirmed.emit();
+    }
+  }
+
+  nomeAluno(aluno: MateriaDependenciaAluno | MateriaDependenciaAluno[]): string {
+    const item = Array.isArray(aluno) ? aluno[0] : aluno;
+    return item?.nome_completo || 'Aluno não identificado';
+  }
+
+  nomeProfessor(usuario: MateriaDependenciaUsuario | MateriaDependenciaUsuario[] | null | undefined): string {
+    const item = Array.isArray(usuario) ? usuario[0] : usuario;
+    return item?.nome || 'Professor não identificado';
   }
 }

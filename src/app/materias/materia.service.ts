@@ -13,6 +13,37 @@ export interface Materia {
   area_conhecimento?: string;
 }
 
+export interface MateriaDependenciaAluno {
+  id?: string | number;
+  nome_completo?: string | null;
+}
+
+export interface MateriaDependenciaUsuario {
+  id_usuario?: string | number;
+  nome?: string | null;
+}
+
+export interface MateriaMaterialVinculado {
+  id_material: string | number;
+  nome_do_arquivo?: string | null;
+  tipo_de_material?: string | null;
+  aluno?: MateriaDependenciaAluno | MateriaDependenciaAluno[] | null;
+}
+
+export interface MateriaProfessorVinculado {
+  id_professor_apoio: string | number;
+  status?: string | number | null;
+  usuario?: MateriaDependenciaUsuario | MateriaDependenciaUsuario[] | null;
+}
+
+export interface MateriaDependencias {
+  temDependencias: boolean;
+  quantidadeMateriais: number;
+  quantidadeProfessores: number;
+  materiais: MateriaMaterialVinculado[];
+  professores: MateriaProfessorVinculado[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -31,6 +62,10 @@ export class MateriaService {
 
   excluirMateria(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
+
+  verificarDependencias(id: string): Observable<MateriaDependencias> {
+    return this.http.get<MateriaDependencias>(`${this.apiUrl}/${id}/verificar-dependencias`);
   }
 
   atualizarMateria(id: string, payload: { nome?: string; area_conhecimento?: string; status?: string | number }): Observable<Materia> {

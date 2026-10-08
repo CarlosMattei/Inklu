@@ -125,6 +125,10 @@
   <app-modal-excluir-materia
     [isOpen]="isDeleteModalOpen"
     [materia]="materiaToDelete"
+    [dependencias]="materiaDependencies"
+    [isVerifying]="isCheckingDependencies"
+    [isDeleting]="isDeletingMateria"
+    [errorMessage]="deleteErrorMessage"
     (closed)="closeDeleteModal()"
     (confirmed)="confirmDelete()">
   </app-modal-excluir-materia>

@@ -2,7 +2,7 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LucideSearch, LucidePlus, LucideEdit, LucideTrash2, LucideLoader2, LucideChevronLeft, LucideChevronRight, LucideRotateCcw, LucideX } from '@lucide/angular';
-import { MateriaService, Materia } from './materia.service';
+import { MateriaService, Materia, MateriaDependencias } from './materia.service';
 import { ModalExcluirMateria } from './modal-excluir-materia/modal-excluir-materia';
 import { ModalEditarMateria, MateriaEditPayload } from './modal-editar-materia/modal-editar-materia';
 import { Toast } from '../shared/toast/toast';
@@ -28,6 +28,10 @@ export class Materias implements OnInit {
   isSavingMateria = false;
   isDeleteModalOpen = false;
   materiaToDelete: Materia | null = null;
+  materiaDependencies: MateriaDependencias | null = null;
+  isCheckingDependencies = false;
+  isDeletingMateria = false;
+  deleteErrorMessage = '';
   isEditModalOpen = false;
   materiaToEdit: Materia | null = null;
   isSavingEdit = false;
@@ -150,12 +154,18 @@ export class Materias implements OnInit {
 
   openDeleteModal(materia: Materia) {
     this.materiaToDelete = materia;
+    this.materiaDependencies = null;
+    this.deleteErrorMessage = '';
     this.isDeleteModalOpen = true;
   }
 
   closeDeleteModal() {
     this.isDeleteModalOpen = false;
     this.materiaToDelete = null;
+    this.materiaDependencies = null;
+    this.isCheckingDependencies = false;
+    this.isDeletingMateria = false;
+    this.deleteErrorMessage = '';
   }
 
   confirmDelete() {
@@ -164,16 +174,54 @@ export class Materias implements OnInit {
       return;
     }
 
+    if (this.materiaDependencies) {
+      this.inativarMateriaConfirmada();
+      return;
+    }
+
+    if (this.isCheckingDependencies || this.isDeletingMateria) {
+      return;
+    }
+
+    this.isCheckingDependencies = true;
+    this.deleteErrorMessage = '';
+    this.materiaService.verificarDependencias(this.materiaToDelete.id_materia).subscribe({
+      next: (dependencias) => {
+        this.isCheckingDependencies = false;
+        this.materiaDependencies = dependencias;
+        this.cdr.detectChanges();
+        if (!dependencias.temDependencias) {
+          this.inativarMateriaConfirmada();
+        }
+      },
+      error: (err) => {
+        console.error('Erro ao verificar dependências da matéria', err);
+        this.isCheckingDependencies = false;
+        this.deleteErrorMessage = 'Não foi possível verificar os vínculos desta matéria. Tente novamente.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private inativarMateriaConfirmada(): void {
+    if (!this.materiaToDelete?.id_materia || this.isDeletingMateria) {
+      return;
+    }
+
+    this.isDeletingMateria = true;
+    this.deleteErrorMessage = '';
     this.materiaService.excluirMateria(this.materiaToDelete.id_materia).subscribe({
       next: () => {
+        this.isDeletingMateria = false;
         this.closeDeleteModal();
         this.carregarMaterias();
         this.showToast('Matéria excluída com sucesso!', 'success');
       },
       error: (err) => {
-        console.error('Erro ao excluir matéria', err);
-        this.closeDeleteModal();
-        alert('Não foi possível excluir a matéria.');
+        console.error('Erro ao inativar matéria', err);
+        this.isDeletingMateria = false;
+        this.deleteErrorMessage = 'Não foi possível inativar a matéria. Tente novamente.';
+        this.cdr.detectChanges();
       },
     });
   }
